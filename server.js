@@ -4,6 +4,7 @@ import cors from 'cors';
 
 import dotenv from 'dotenv';
 
+
 // 🔥 RUTAS
 
 import authRoutes from './src/routes/authRoutes.js';
@@ -11,6 +12,7 @@ import authRoutes from './src/routes/authRoutes.js';
 import productoRoutes from './src/routes/productoRoutes.js';
 
 import ventaRoutes from './src/routes/ventaRoutes.js';
+
 
 // 🔥 CONFIG
 
@@ -47,6 +49,9 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 
 app.use('/api/productos', productoRoutes);
+
+// 🔥 ESTA FALTABA
+app.use('/api/ventas', ventaRoutes);
 
 
 // 🔥 RUTA PRINCIPAL
