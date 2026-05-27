@@ -10,7 +10,26 @@ import authRoutes from './src/routes/authRoutes.js';
 
 import productoRoutes from './src/routes/productoRoutes.js';
 
+
+// 🔥 CONFIG
+
 dotenv.config();
+
+
+// 🔥 DEBUG VARIABLES RENDER
+
+console.log("🔥 VARIABLES RENDER:");
+
+console.log("DB_HOST:", process.env.DB_HOST);
+
+console.log("DB_USER:", process.env.DB_USER);
+
+console.log("DB_NAME:", process.env.DB_NAME);
+
+console.log("DB_PORT:", process.env.DB_PORT);
+
+
+// 🔥 APP
 
 const app = express();
 
@@ -33,7 +52,7 @@ app.use('/api/productos', productoRoutes);
 
 app.get('/', (req, res) => {
 
-    res.send('Servidor Frío Cars funcionando correctamente 🚗');
+    res.send('🚗 Servidor Frío Cars funcionando correctamente');
 
 });
 
