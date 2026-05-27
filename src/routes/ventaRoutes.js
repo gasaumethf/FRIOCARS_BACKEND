@@ -52,26 +52,28 @@ router.post('/', async (req, res) => {
             total += subtotal;
 
 
-            // ✅ INSERTAR DETALLE VENTA
+            // ✅ INSERTAR DETALLE COMPRA
 
             await pool.query(
 
                 `
-                INSERT INTO detalle_venta
+                INSERT INTO detalle_compra
                 (
-                    id_venta,
-                    id_producto,
+                    id_compra,
+                    id_repuesto,
                     cantidad,
-                    precio_unitario
+                    precio_unitario,
+                    subtotal
                 )
-                VALUES ($1, $2, $3, $4)
+                VALUES ($1, $2, $3, $4, $5)
                 `,
 
                 [
                     idVenta,
                     p.id_producto,
                     p.cantidad,
-                    p.precio
+                    p.precio,
+                    subtotal
                 ]
 
             );
