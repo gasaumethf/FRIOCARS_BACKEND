@@ -63,9 +63,8 @@ router.post('/', async (req, res) => {
                     id_repuesto,
                     cantidad,
                     precio_unitario,
-                    subtotal
                 )
-                VALUES ($1, $2, $3, $4, $5)
+                VALUES ($1, $2, $3, $4)
                 `,
 
                 [
@@ -73,7 +72,7 @@ router.post('/', async (req, res) => {
                     p.id_producto,
                     p.cantidad,
                     p.precio,
-                    subtotal
+            
                 ]
 
             );
