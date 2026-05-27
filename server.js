@@ -11,7 +11,7 @@ import authRoutes from './src/routes/authRoutes.js';
 
 import productoRoutes from './src/routes/productoRoutes.js';
 
-import ventaRoutes from './src/routes/ventaRoutes.js';
+import ventaRoutes from './src/routes/ventaRoutes.js'; 
 
 
 // 🔥 CONFIG
