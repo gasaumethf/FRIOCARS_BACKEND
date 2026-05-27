@@ -52,7 +52,7 @@ router.post('/', async (req, res) => {
             total += subtotal;
 
 
-            // ✅ INSERTAR DETALLE COMPRA
+            // ✅ INSERTAR DETALLE_COMPRA
 
             await pool.query(
 
