@@ -10,7 +10,6 @@ import productoRoutes from './src/routes/productoRoutes.js';
 import ventaRoutes    from './src/routes/ventaRoutes.js';
 import clienteRoutes  from './src/routes/clienteRoutes.js';
 import vehiculoRoutes from './src/routes/vehiculoRoutes.js';
-
 // ══════════════════════════════════════════════════════
 //  CONFIG
 // ══════════════════════════════════════════════════════
