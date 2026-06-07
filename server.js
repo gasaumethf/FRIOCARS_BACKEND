@@ -10,6 +10,7 @@ import productoRoutes from './src/routes/productoRoutes.js';
 import ventaRoutes    from './src/routes/ventaRoutes.js';
 import clienteRoutes  from './src/routes/clienteRoutes.js';
 import vehiculoRoutes from './src/routes/vehiculoRoutes.js';
+
 // ══════════════════════════════════════════════════════
 //  CONFIG
 // ══════════════════════════════════════════════════════
@@ -33,13 +34,13 @@ app.use(cors());
 app.use(express.json());
 
 // ══════════════════════════════════════════════════════
-//  RUTAS API
+//  RUTAS API — ORDEN IMPORTA: más específicas primero
 // ══════════════════════════════════════════════════════
-app.use('/api/auth',      authRoutes);
-app.use('/api',           productoRoutes);   // GET /api/productos  POST /api/productos
-app.use('/api',           ventaRoutes);      // GET /api/ventas     POST /api/ventas
-app.use('/api',           clienteRoutes);    // GET /api/clientes   POST /api/clientes  PUT  DELETE
-app.use('/api',           vehiculoRoutes);   // GET /api/vehiculos  POST /api/vehiculos PUT  DELETE
+app.use('/api/auth',       authRoutes);
+app.use('/api/clientes',   clienteRoutes);    // GET POST PUT DELETE /api/clientes
+app.use('/api/vehiculos',  vehiculoRoutes);   // GET POST PUT DELETE /api/vehiculos
+app.use('/api/ventas',     ventaRoutes);      // GET POST /api/ventas
+app.use('/api/productos',  productoRoutes);   // GET POST PUT DELETE /api/productos
 
 // ══════════════════════════════════════════════════════
 //  RUTA PRINCIPAL

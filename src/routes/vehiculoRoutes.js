@@ -1,7 +1,6 @@
 // ══════════════════════════════════════════════════════
 //  FRÍO CARS — vehiculoRoutes.js
-//  Tabla: vehiculo (id_vehiculo, placa, marca, modelo,
-//                   tipo_vehiculo, anio, id_cliente)
+//  Registrado como: app.use('/api/vehiculos', vehiculoRoutes)
 // ══════════════════════════════════════════════════════
 
 import express from 'express';
@@ -12,16 +11,11 @@ const router = express.Router();
 
 // ══════════════════════════════════════════════════════
 //  GET /api/vehiculos
-//  Todos los vehículos (con datos del cliente)
 // ══════════════════════════════════════════════════════
-router.get('/vehiculos', async (req, res) => {
+router.get('/', async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT
-                v.*,
-                c.nombre    AS cliente_nombre,
-                c.apellido  AS cliente_apellido,
-                c.telefono  AS cliente_telefono
+            SELECT v.*, c.nombre AS cliente_nombre, c.apellido AS cliente_apellido
             FROM vehiculo v
             LEFT JOIN cliente c ON c.id_cliente = v.id_cliente
             ORDER BY v.id_vehiculo DESC
@@ -36,16 +30,14 @@ router.get('/vehiculos', async (req, res) => {
 
 // ══════════════════════════════════════════════════════
 //  GET /api/vehiculos/cliente/:id_cliente
-//  Vehículos de un cliente específico
 // ══════════════════════════════════════════════════════
-router.get('/vehiculos/cliente/:id_cliente', async (req, res) => {
+router.get('/cliente/:id_cliente', async (req, res) => {
     try {
         const { id_cliente } = req.params;
-        const result = await pool.query(`
-            SELECT * FROM vehiculo
-            WHERE id_cliente = $1
-            ORDER BY id_vehiculo DESC
-        `, [id_cliente]);
+        const result = await pool.query(
+            `SELECT * FROM vehiculo WHERE id_cliente = $1 ORDER BY id_vehiculo DESC`,
+            [id_cliente]
+        );
         res.json(result.rows);
     } catch (error) {
         console.error(error);
@@ -56,18 +48,16 @@ router.get('/vehiculos/cliente/:id_cliente', async (req, res) => {
 
 // ══════════════════════════════════════════════════════
 //  POST /api/vehiculos
-//  Registrar vehículo (vinculado a un cliente)
 // ══════════════════════════════════════════════════════
-router.post('/vehiculos', async (req, res) => {
+router.post('/', async (req, res) => {
     try {
         const { placa, marca, modelo, tipo_vehiculo, anio, id_cliente } = req.body;
 
-        // Validar que el cliente exista
         if (!id_cliente) {
             return res.status(400).json({ error: "id_cliente es obligatorio" });
         }
 
-        // Verificar placa duplicada
+        // Validar placa duplicada
         if (placa) {
             const existe = await pool.query(
                 `SELECT id_vehiculo FROM vehiculo WHERE UPPER(placa) = UPPER($1)`,
@@ -84,8 +74,8 @@ router.post('/vehiculos', async (req, res) => {
             RETURNING *
         `, [
             placa?.toUpperCase() || null,
-            marca,
-            modelo,
+            marca || null,
+            modelo || null,
             tipo_vehiculo || null,
             anio ? parseInt(anio) : null,
             id_cliente
@@ -101,36 +91,26 @@ router.post('/vehiculos', async (req, res) => {
 
 // ══════════════════════════════════════════════════════
 //  PUT /api/vehiculos/:id
-//  Actualizar vehículo
 // ══════════════════════════════════════════════════════
-router.put('/vehiculos/:id', async (req, res) => {
+router.put('/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const { placa, marca, modelo, tipo_vehiculo, anio } = req.body;
 
         const result = await pool.query(`
             UPDATE vehiculo
-            SET
-                placa         = COALESCE($1, placa),
+            SET placa         = COALESCE($1, placa),
                 marca         = COALESCE($2, marca),
                 modelo        = COALESCE($3, modelo),
                 tipo_vehiculo = COALESCE($4, tipo_vehiculo),
                 anio          = COALESCE($5, anio)
             WHERE id_vehiculo = $6
             RETURNING *
-        `, [
-            placa?.toUpperCase() || null,
-            marca || null,
-            modelo || null,
-            tipo_vehiculo || null,
-            anio ? parseInt(anio) : null,
-            id
-        ]);
+        `, [placa?.toUpperCase() || null, marca || null, modelo || null, tipo_vehiculo || null, anio ? parseInt(anio) : null, id]);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "Vehículo no encontrado" });
         }
-
         res.json(result.rows[0]);
     } catch (error) {
         console.error(error);
@@ -141,9 +121,8 @@ router.put('/vehiculos/:id', async (req, res) => {
 
 // ══════════════════════════════════════════════════════
 //  DELETE /api/vehiculos/:id
-//  Eliminar vehículo
 // ══════════════════════════════════════════════════════
-router.delete('/vehiculos/:id', async (req, res) => {
+router.delete('/:id', async (req, res) => {
     try {
         const { id } = req.params;
         await pool.query(`DELETE FROM vehiculo WHERE id_vehiculo = $1`, [id]);
