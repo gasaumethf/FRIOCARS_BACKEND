@@ -160,30 +160,42 @@ router.post('/cotizar', async (req, res) => {
 });
 
 
-// ── NUEVA RUTA ──────────────────────────
+// ══════════════════════════════════════════════════════════
+//  POST /api/asistente/chat — usa Gemini (GRATIS)
+// ══════════════════════════════════════════════════════════
 router.post('/chat', async (req, res) => {
   try {
     const { messages, system } = req.body;
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 900,
-        system,
-        messages
-      })
-    });
+    // Convertir historial al formato de Gemini
+    const contents = messages.map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }]
+    }));
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: system }] },
+          contents,
+          generationConfig: { maxOutputTokens: 900, temperature: 0.7 }
+        })
+      }
+    );
 
     const data = await response.json();
-    res.json(data);
+    const texto = data.candidates?.[0]?.content?.parts?.[0]?.text
+      || 'No pude procesar tu solicitud.';
+
+    // Responde en el mismo formato que espera el frontend
+    res.json({ content: [{ type: 'text', text: texto }] });
+
   } catch (error) {
-    res.status(500).json({ error: 'Error conectando con Claude' });
+    console.error('Error Gemini:', error);
+    res.status(500).json({ error: 'Error conectando con Gemini' });
   }
 });
 
