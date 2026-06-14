@@ -131,18 +131,19 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { tipo_servicio, descripcion, estado, id_tecnico } = req.body;
+        const { tipo_servicio, descripcion, observaciones, estado, id_tecnico } = req.body;
 
         const result = await pool.query(`
             UPDATE orden_de_trabajo
             SET tipo_servicio = $1,
                 descripcion   = $2,
-                estado        = $3,
-                id_tecnico    = $4,
-                fecha_fin     = CASE WHEN $3 = 'Finalizada' THEN NOW() ELSE NULL END
-            WHERE id_orden = $5
+                observaciones = $3,
+                estado        = $4,
+                id_tecnico    = $5,
+                fecha_fin     = CASE WHEN $4 = 'Finalizada' THEN NOW() ELSE NULL END
+            WHERE id_orden = $6
             RETURNING *
-        `, [tipo_servicio, descripcion || null, estado, id_tecnico || null, id]);
+        `, [tipo_servicio, descripcion || null, observaciones || null, estado, id_tecnico || null, id]);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "Orden no encontrada" });
