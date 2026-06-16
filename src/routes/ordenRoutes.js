@@ -3,7 +3,7 @@
 // ══════════════════════════════════════════════════════
 
 import express from 'express';
-import pool    from '../config/db.js';
+import pool from '../config/db.js';
 
 const router = express.Router();
 
@@ -191,7 +191,7 @@ router.get('/:id/repuestos', async (req, res) => {
 router.post('/:id/repuestos', async (req, res) => {
     const client = await pool.connect();
     try {
-        const { id }           = req.params;
+        const { id } = req.params;
         const { id_producto, cantidad } = req.body;
 
         if (!id_producto || !cantidad || cantidad < 1) {
@@ -210,7 +210,7 @@ router.post('/:id/repuestos', async (req, res) => {
         if (prod.stock < cantidad) throw new Error(`Stock insuficiente para "${prod.nombre}". Disponible: ${prod.stock}`);
 
         const precio_aplicado = prod.precio;
-        const subtotal        = precio_aplicado * cantidad;
+        const subtotal = precio_aplicado * cantidad;
 
         // Verificar si ya existe el producto en esta orden
         const existe = await client.query(
@@ -232,10 +232,10 @@ router.post('/:id/repuestos', async (req, res) => {
         } else {
             // Insertar nuevo
             result = await client.query(`
-                INSERT INTO orden_repuesto (id_orden, id_producto, cantidad, precio_aplicado, subtotal)
-                VALUES ($1, $2, $3, $4, $5)
+                INSERT INTO orden_repuesto (id_orden, id_producto, cantidad, precio_aplicado)
+                VALUES ($1, $2, $3, $4)
                 RETURNING *
-            `, [id, id_producto, cantidad, precio_aplicado, subtotal]);
+                `, [id, id_producto, cantidad, precio_aplicado]);
         }
 
         // Descontar stock
@@ -330,18 +330,18 @@ router.get('/:id/resumen', async (req, res) => {
         const totalRepuestos = repuestosRes.rows.reduce((s, r) => s + parseFloat(r.subtotal), 0);
 
         res.json({
-            orden:           ordenRes.rows[0],
-            repuestos:       repuestosRes.rows,
+            orden: ordenRes.rows[0],
+            repuestos: repuestosRes.rows,
             totalRepuestos,
-            iva:             totalRepuestos * 0.19,
-            totalConIva:     totalRepuestos * 1.19
+            iva: totalRepuestos * 0.19,
+            totalConIva: totalRepuestos * 1.19
         });
 
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: "Error obteniendo resumen" });
     }
-}) ;
+});
 
 
 export default router;
