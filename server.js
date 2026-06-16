@@ -15,7 +15,7 @@ import vehiculoRoutes from './src/routes/vehiculoRoutes.js';
 import asistenteRoutes from './src/routes/asistenteRoutes.js';
 import tecnicoRoutes  from './src/routes/tecnicoRoutes.js';   // ← NUEVO
 import ordenRoutes    from './src/routes/ordenRoutes.js';     // ← NUEVO
-import cotizacionRoutes from './routes/cotizacionRoutes.js'; //COTIZACIONES 
+import cotizacionRoutes from './src/routes/cotizacionRoutes.js'; //COTIZACIONES 
 
 
 // ── CONFIG ────────────────────────────────────────────
