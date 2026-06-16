@@ -232,9 +232,13 @@ router.post('/:id/repuestos', async (req, res) => {
         } else {
             // Insertar nuevo
             result = await client.query(`
-                INSERT INTO orden_repuesto (id_orden, id_producto, cantidad, precio_aplicado, subtotal)
-                VALUES ($1, $2, $3, $4, $5)
-                RETURNING *
+                 INSERT INTO orden_repuesto (
+                    id_orden,
+                    id_producto,
+                    cantidad,
+                    precio_aplicado)
+                    VALUES ($1, $2, $3, $4)
+                    RETURNING *
             `, [id, id_producto, cantidad, precio_aplicado, subtotal]);
         }
 
