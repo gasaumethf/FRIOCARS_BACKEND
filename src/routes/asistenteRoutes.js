@@ -32,17 +32,16 @@ router.get('/contexto', async (req, res) => {
 
 
 // ══════════════════════════════════════════════════════════
-//  POST /api/asistente/chat
-//  Busca productos relevantes en BD y consulta Claude
+//  POST /api/asistente/chat — Gemini con búsqueda en BD
 // ══════════════════════════════════════════════════════════
 router.post('/chat', async (req, res) => {
   try {
-    const { messages, system } = req.body;
+    const { messages } = req.body;
 
-    // Obtener la última pregunta del usuario
+    // Última pregunta del usuario
     const ultimaPregunta = messages[messages.length - 1]?.content || '';
 
-    // Buscar productos relevantes en la BD según palabras clave
+    // Buscar productos relevantes en BD según palabras clave
     const palabras = ultimaPregunta
       .toLowerCase()
       .split(/\s+/)
@@ -53,65 +52,70 @@ router.post('/chat', async (req, res) => {
 
     if (palabras.length > 0) {
       const condiciones = palabras.map((_, i) => `LOWER(nombre) ILIKE $${i + 1}`).join(' OR ');
-      const valores     = palabras.map(p => `%${p}%`);
-      const resultado   = await pool.query(
-        `SELECT nombre, categoria, precio, stock FROM producto WHERE ${condiciones} ORDER BY nombre LIMIT 20`,
+      const valores = palabras.map(p => `%${p}%`);
+      const resultado = await pool.query(
+        `SELECT nombre, categoria, precio, stock FROM producto WHERE ${condiciones} ORDER BY nombre LIMIT 15`,
         valores
       );
       productosRelevantes = resultado.rows;
     }
 
-    // Si no encontró por palabras clave, traer los primeros 30
+    // Si no encontró, traer muestra general
     if (productosRelevantes.length === 0) {
       const fallback = await pool.query(
-        `SELECT nombre, categoria, precio, stock FROM producto WHERE stock > 0 ORDER BY nombre LIMIT 30`
+        `SELECT nombre, categoria, precio, stock FROM producto WHERE stock > 0 ORDER BY nombre LIMIT 20`
       );
       productosRelevantes = fallback.rows;
     }
 
-    // Construir contexto de inventario reducido
-    const inventarioTexto = productosRelevantes.length > 0
-      ? productosRelevantes.map(p =>
-          `• ${p.nombre} | $${Number(p.precio).toLocaleString('es-CO')} | Stock: ${p.stock} | Cat: ${p.categoria || 'N/A'}`
-        ).join('\n')
-      : 'Sin productos encontrados para esta búsqueda.';
+    // Inventario resumido
+    const inventarioTexto = productosRelevantes
+      .map(p => `• ${p.nombre} | $${Number(p.precio).toLocaleString('es-CO')} | Stock: ${p.stock}`)
+      .join('\n');
 
-    // System prompt compacto con solo productos relevantes
-    const systemFinal = `Eres el asistente de Frío Cars, empresa de refrigeración automotriz colombiana.
+    // System prompt propio — NO usar el del frontend
+    const systemPrompt = `Eres el asistente de Frío Cars, empresa colombiana de refrigeración automotriz.
 
-PRODUCTOS DISPONIBLES (relevantes para esta consulta):
+PRODUCTOS RELEVANTES DEL INVENTARIO:
 ${inventarioTexto}
 
-REGLAS:
-- Responde en español colombiano, breve y útil
-- Cotizaciones incluyen IVA 19%
-- Si no encuentras el producto exacto, sugiere el más parecido
-- Indica stock disponible en tus respuestas`;
+INSTRUCCIONES:
+- Responde en español colombiano, de forma clara y útil
+- Cuando des precios incluye IVA del 19% si te lo piden
+- Si el producto exacto no está, sugiere el más parecido del listado
+- Indica siempre el stock disponible
+- Sé breve y directo`;
 
-    // Llamar a Claude con contexto reducido
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type':      'application/json',
-        'x-api-key':         process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model:      'claude-haiku-4-5',
-        max_tokens: 600,
-        system:     systemFinal,
-        messages
-      })
-    });
+    // Convertir historial al formato Gemini
+    const contents = messages.map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }]
+    }));
+
+    // Llamar a Gemini
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: systemPrompt }] },
+          contents,
+          generationConfig: { maxOutputTokens: 600, temperature: 0.7 }
+        })
+      }
+    );
 
     const data = await response.json();
 
     if (data.error) {
-      console.error('Error Anthropic:', data.error);
+      console.error('Error Gemini:', data.error);
       return res.status(500).json({ error: data.error.message });
     }
 
-    const texto = data.content?.[0]?.text || 'No pude procesar tu solicitud.';
+    const texto = data.candidates?.[0]?.content?.parts?.[0]?.text
+      || 'No pude procesar tu solicitud.';
+
     res.json({ content: [{ type: 'text', text: texto }] });
 
   } catch (error) {
