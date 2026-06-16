@@ -60,6 +60,7 @@ router.get('/activas', async (req, res) => {
                 o.id_orden,
                 o.tipo_servicio,
                 o.descripcion,
+                o.observaciones,
                 o.estado,
                 o.fecha_ingreso,
                 c.id_cliente,
