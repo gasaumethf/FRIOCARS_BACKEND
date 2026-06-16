@@ -15,6 +15,8 @@ import vehiculoRoutes from './src/routes/vehiculoRoutes.js';
 import asistenteRoutes from './src/routes/asistenteRoutes.js';
 import tecnicoRoutes  from './src/routes/tecnicoRoutes.js';   // ← NUEVO
 import ordenRoutes    from './src/routes/ordenRoutes.js';     // ← NUEVO
+import cotizacionRoutes from './routes/cotizacionRoutes.js'; //COTIZACIONES 
+
 
 // ── CONFIG ────────────────────────────────────────────
 dotenv.config();
@@ -41,13 +43,14 @@ app.use('/api/productos',  productoRoutes);   // GET POST PUT DELETE /api/produc
 app.use('/api/asistente',  asistenteRoutes);
 app.use('/api/tecnicos',   tecnicoRoutes);    // GET POST PUT DELETE /api/tecnicos  ← NUEVO
 app.use('/api/ordenes',    ordenRoutes);      // GET POST PUT PATCH DELETE /api/ordenes ← NUEVO
+app.use('/api/cotizaciones', cotizacionRoutes) //COTIZACIONES 
 
 // ── RUTA PRINCIPAL ────────────────────────────────────
 app.get('/', (req, res) => {
     res.send('Servidor Frío Cars funcionando correctamente');
 });
 
-// ── SERVIDOR ──────────────────────────────────────────
+// ── SERVIDOR ──────────────────────────────────────────   
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
     console.log(`Servidor corriendo en puerto ${PORT}`);
