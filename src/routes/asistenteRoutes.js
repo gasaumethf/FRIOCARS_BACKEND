@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════
-//  FRÍO CARS — asistenteRoutes.js
+//  FRÍO CARS — asistenteRoutes.js — Groq (gratis)
 // ══════════════════════════════════════════════════════════
 
 import express from 'express';
@@ -32,7 +32,7 @@ router.get('/contexto', async (req, res) => {
 
 
 // ══════════════════════════════════════════════════════════
-//  POST /api/asistente/chat — Gemini con búsqueda en BD
+//  POST /api/asistente/chat — Groq (llama3-8b-8192)
 // ══════════════════════════════════════════════════════════
 router.post('/chat', async (req, res) => {
   try {
@@ -41,7 +41,7 @@ router.post('/chat', async (req, res) => {
     // Última pregunta del usuario
     const ultimaPregunta = messages[messages.length - 1]?.content || '';
 
-    // Buscar productos relevantes en BD según palabras clave
+    // Buscar productos relevantes en BD
     const palabras = ultimaPregunta
       .toLowerCase()
       .split(/\s+/)
@@ -60,7 +60,6 @@ router.post('/chat', async (req, res) => {
       productosRelevantes = resultado.rows;
     }
 
-    // Si no encontró, traer muestra general
     if (productosRelevantes.length === 0) {
       const fallback = await pool.query(
         `SELECT nombre, categoria, precio, stock FROM producto WHERE stock > 0 ORDER BY nombre LIMIT 20`
@@ -68,54 +67,48 @@ router.post('/chat', async (req, res) => {
       productosRelevantes = fallback.rows;
     }
 
-    // Inventario resumido
     const inventarioTexto = productosRelevantes
-      .map(p => `• ${p.nombre} | $${Number(p.precio).toLocaleString('es-CO')} | Stock: ${p.stock}`)
+      .map(p => `• ${p.nombre} | $${Number(p.precio).toLocaleString('es-CO')} | Stock: ${p.stock} | Cat: ${p.categoria || 'N/A'}`)
       .join('\n');
 
-    // System prompt propio — NO usar el del frontend
     const systemPrompt = `Eres el asistente de Frío Cars, empresa colombiana de refrigeración automotriz.
 
 PRODUCTOS RELEVANTES DEL INVENTARIO:
 ${inventarioTexto}
 
 INSTRUCCIONES:
-- Responde en español colombiano, de forma clara y útil
-- Cuando des precios incluye IVA del 19% si te lo piden
-- Si el producto exacto no está, sugiere el más parecido del listado
-- Indica siempre el stock disponible
+- Responde en español colombiano, claro y útil
+- Cuando den precios incluye IVA 19% si te lo piden
+- Si el producto exacto no está, sugiere el más parecido
+- Indica el stock disponible
 - Sé breve y directo`;
 
-    // Convertir historial al formato Gemini
-    const contents = messages.map(m => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }]
-    }));
-
-    // Llamar a Gemini
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents,
-          generationConfig: { maxOutputTokens: 600, temperature: 0.7 }
-        })
-      }
-    );
+    // Llamar a Groq
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
+      },
+      body: JSON.stringify({
+        model:       'llama3-8b-8192',
+        messages:    [
+          { role: 'system', content: systemPrompt },
+          ...messages
+        ],
+        max_tokens:  600,
+        temperature: 0.7
+      })
+    });
 
     const data = await response.json();
 
     if (data.error) {
-      console.error('Error Gemini:', data.error);
+      console.error('Error Groq:', data.error);
       return res.status(500).json({ error: data.error.message });
     }
 
-    const texto = data.candidates?.[0]?.content?.parts?.[0]?.text
-      || 'No pude procesar tu solicitud.';
-
+    const texto = data.choices?.[0]?.message?.content || 'No pude procesar tu solicitud.';
     res.json({ content: [{ type: 'text', text: texto }] });
 
   } catch (error) {
