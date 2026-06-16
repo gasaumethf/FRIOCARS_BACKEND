@@ -1,7 +1,5 @@
 // ══════════════════════════════════════════════════════
 //  FRÍO CARS — ventaRoutes.js
-//  BUG CORREGIDO: coma extra en INSERT detalle_compra
-//  MEJORADO: acepta id_cliente, valida stock previo
 // ══════════════════════════════════════════════════════
 
 import express from 'express';
@@ -17,31 +15,34 @@ router.post('/', async (req, res) => {
 
     const { productos, id_cliente } = req.body;
 
-    // ── Validar carrito ───────────────────────────────
     if (!productos || productos.length === 0) {
         return res.status(400).json({ error: "No hay productos en la venta" });
     }
 
-    const client = await pool.connect(); // Usamos transacción
+    const client = await pool.connect();
 
     try {
         await client.query('BEGIN');
 
-        // ── Validar stock antes de procesar ──────────
+        // ── Validar stock ─────────────────────────────
         for (const p of productos) {
+            // Si viene desde una orden ya finalizada, el stock ya fue descontado
+            if (p.desde_orden) continue;
+
             const stockRes = await client.query(
                 `SELECT stock, nombre FROM producto WHERE id_producto = $1`,
                 [p.id_producto]
             );
-            if (stockRes.rows.length === 0) {
-                throw new Error(`Producto ID ${p.id_producto} no encontrado`);
+            if (stockRes.rows.length === 0) throw new Error(`Producto ID ${p.id_producto} no encontrado`);
+            if (stockRes.rows[0].stock < p.cantidad) {
+                throw new Error(`Stock insuficiente para "${stockRes.rows[0].nombre}". Disponible: ${stockRes.rows[0].stock}`);
             }
-            const stockActual = stockRes.rows[0].stock;
-            if (stockActual < p.cantidad) {
-                throw new Error(
-                    `Stock insuficiente para "${stockRes.rows[0].nombre}". Disponible: ${stockActual}, solicitado: ${p.cantidad}`
-                );
-            }
+        }
+
+        // ── Calcular total ────────────────────────────
+        let total = 0;
+        for (const p of productos) {
+            total += p.precio * p.cantidad;
         }
 
         // ── Crear registro de venta ───────────────────
@@ -49,45 +50,26 @@ router.post('/', async (req, res) => {
             `INSERT INTO venta (total, id_usuario)
              VALUES ($1, $2)
              RETURNING *`,
-            [0, 1]  // id_usuario = 1 por ahora (se conecta al auth después)
+            [total, 1]
         );
 
         const idVenta = ventaResult.rows[0].id_venta;
-        let total = 0;
 
-        // ── Insertar detalle y descontar stock ────────
+        // ── Descontar stock solo de productos nuevos ──
         for (const p of productos) {
-            const subtotal = p.precio * p.cantidad;
-            total += subtotal;
-
-            // ✅ BUG CORREGIDO: sin coma extra antes del paréntesis
-            await client.query(
-                `INSERT INTO detalle_compra
-                 (id_compra, id_repuesto, cantidad, precio_unitario)
-                 VALUES ($1, $2, $3, $4)`,
-                [idVenta, p.id_producto, p.cantidad, p.precio]
-            );
-
-            // Descontar stock
-            await client.query(
-                `UPDATE producto
-                 SET stock = stock - $1
-                 WHERE id_producto = $2`,
-                [p.cantidad, p.id_producto]
-            );
+            if (!p.desde_orden) {
+                await client.query(
+                    `UPDATE producto SET stock = stock - $1 WHERE id_producto = $2`,
+                    [p.cantidad, p.id_producto]
+                );
+            }
         }
-
-        // ── Actualizar total en la venta ──────────────
-        await client.query(
-            `UPDATE venta SET total = $1 WHERE id_venta = $2`,
-            [total, idVenta]
-        );
 
         await client.query('COMMIT');
 
         res.json({
-            message:  "Venta guardada correctamente",
-            ventaId:  idVenta,
+            message:   "Venta guardada correctamente",
+            ventaId:   idVenta,
             total,
             productos: productos.length
         });
@@ -96,7 +78,6 @@ router.post('/', async (req, res) => {
         await client.query('ROLLBACK');
         console.error("ERROR EN VENTA:", error.message);
         res.status(500).json({ error: error.message || "Error guardando venta" });
-
     } finally {
         client.release();
     }
@@ -109,15 +90,9 @@ router.post('/', async (req, res) => {
 router.get('/', async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT
-                v.id_venta,
-                v.total,
-                v.id_usuario,
-                COUNT(d.id_compra) AS productos
-            FROM venta v
-            LEFT JOIN detalle_compra d ON d.id_compra = v.id_venta
-            GROUP BY v.id_venta
-            ORDER BY v.id_venta DESC
+            SELECT id_venta, total, fec, id_usuario
+            FROM venta
+            ORDER BY id_venta DESC
         `);
         res.json(result.rows);
     } catch (error) {

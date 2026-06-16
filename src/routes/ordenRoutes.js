@@ -3,7 +3,7 @@
 // ══════════════════════════════════════════════════════
 
 import express from 'express';
-import pool from '../config/db.js';
+import pool    from '../config/db.js';
 
 const router = express.Router();
 
@@ -191,7 +191,7 @@ router.get('/:id/repuestos', async (req, res) => {
 router.post('/:id/repuestos', async (req, res) => {
     const client = await pool.connect();
     try {
-        const { id } = req.params;
+        const { id }           = req.params;
         const { id_producto, cantidad } = req.body;
 
         if (!id_producto || !cantidad || cantidad < 1) {
@@ -210,7 +210,7 @@ router.post('/:id/repuestos', async (req, res) => {
         if (prod.stock < cantidad) throw new Error(`Stock insuficiente para "${prod.nombre}". Disponible: ${prod.stock}`);
 
         const precio_aplicado = prod.precio;
-        const subtotal = precio_aplicado * cantidad;
+        const subtotal        = precio_aplicado * cantidad;
 
         // Verificar si ya existe el producto en esta orden
         const existe = await client.query(
@@ -225,17 +225,17 @@ router.post('/:id/repuestos', async (req, res) => {
             const nuevoSubtotal = precio_aplicado * nuevaCantidad;
             result = await client.query(`
                 UPDATE orden_repuesto
-                SET cantidad = $1, subtotal = $2
-                WHERE id_orden_repuesto = $3
+                SET cantidad = $1
+                WHERE id_orden_repuesto = $2
                 RETURNING *
-            `, [nuevaCantidad, nuevoSubtotal, existe.rows[0].id_orden_repuesto]);
+            `, [nuevaCantidad, existe.rows[0].id_orden_repuesto]);
         } else {
             // Insertar nuevo
             result = await client.query(`
-                INSERT INTO orden_repuesto (id_orden, id_producto, cantidad, precio_aplicado)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO orden_repuesto (id_orden, id_producto, cantidad, precio_aplicado, subtotal)
+                VALUES ($1, $2, $3, $4, $5)
                 RETURNING *
-                `, [id, id_producto, cantidad, precio_aplicado]);
+            `, [id, id_producto, cantidad, precio_aplicado, subtotal]);
         }
 
         // Descontar stock
@@ -330,11 +330,11 @@ router.get('/:id/resumen', async (req, res) => {
         const totalRepuestos = repuestosRes.rows.reduce((s, r) => s + parseFloat(r.subtotal), 0);
 
         res.json({
-            orden: ordenRes.rows[0],
-            repuestos: repuestosRes.rows,
+            orden:           ordenRes.rows[0],
+            repuestos:       repuestosRes.rows,
             totalRepuestos,
-            iva: totalRepuestos * 0.19,
-            totalConIva: totalRepuestos * 1.19
+            iva:             totalRepuestos * 0.19,
+            totalConIva:     totalRepuestos * 1.19
         });
 
     } catch (error) {
