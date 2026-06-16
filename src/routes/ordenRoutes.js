@@ -341,7 +341,7 @@ router.get('/:id/resumen', async (req, res) => {
         console.error(error);
         res.status(500).json({ error: "Error obteniendo resumen" });
     }
-});
+}) ;
 
 
 export default router;
