@@ -29,7 +29,7 @@ export const listar = async (req, res) => {
 };
 
 
-// ✅ OBTENER POR ID
+//  OBTENER POR ID
 export const obtenerPorId = async (req, res) => {
     try {
         const producto = await obtenerProductoPorId(req.params.id);
@@ -40,7 +40,7 @@ export const obtenerPorId = async (req, res) => {
 };
 
 
-// ✅ ACTUALIZAR
+//  ACTUALIZAR
 export const actualizar = async (req, res) => {
     try {
         const producto = await actualizarProducto(req.params.id, req.body);

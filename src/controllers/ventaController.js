@@ -1,7 +1,7 @@
 import { registrarVenta } from '../models/ventaModel.js';
 
 
-// ✅ CREAR VENTA
+//  CREAR VENTA
 
 export const crearVenta = async (req, res) => {
 
