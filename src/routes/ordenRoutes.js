@@ -239,7 +239,7 @@ router.post('/:id/repuestos', async (req, res) => {
                     precio_aplicado)
                     VALUES ($1, $2, $3, $4)
                     RETURNING *
-            `, [id, id_producto, cantidad, precio_aplicado, subtotal]);
+            `, [id, id_producto, cantidad, precio_aplicado]);
         }
 
         // Descontar stock
