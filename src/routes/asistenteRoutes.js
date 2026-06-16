@@ -1,9 +1,5 @@
 // ══════════════════════════════════════════════════════════
 //  FRÍO CARS — asistenteRoutes.js
-//  Ruta: app.use('/api/asistente', asistenteRoutes)
-//  Endpoints:
-//    GET  /api/asistente/contexto  → stock + stats para la IA
-//    POST /api/asistente/cotizar   → cotización basada en productos
 // ══════════════════════════════════════════════════════════
 
 import express from 'express';
@@ -14,67 +10,35 @@ const router = express.Router();
 
 // ══════════════════════════════════════════════════════════
 //  GET /api/asistente/contexto
-//  Devuelve todo el contexto que necesita la IA:
-//  productos, stats de ventas, stock bajo
 // ══════════════════════════════════════════════════════════
 router.get('/contexto', async (req, res) => {
   try {
-    // Todos los productos con stock
     const productos = await pool.query(`
       SELECT id_producto, nombre, categoria, precio, stock, descripcion
-      FROM producto
-      ORDER BY nombre ASC
+      FROM producto ORDER BY nombre ASC
     `);
-
-    // Productos con stock bajo (menos de 5)
     const stockBajo = await pool.query(`
-      SELECT nombre, stock, categoria
-      FROM producto
-      WHERE stock < 5
-      ORDER BY stock ASC
+      SELECT nombre, stock, categoria FROM producto WHERE stock < 5 ORDER BY stock ASC
     `);
-
-    // Productos agotados
     const agotados = await pool.query(`
-      SELECT nombre, categoria
-      FROM producto
-      WHERE stock = 0
+      SELECT nombre, categoria FROM producto WHERE stock = 0
     `);
-
-    // Top 5 más vendidos (si hay detalle_compra)
-    let topVendidos = [];
-    try {
-      const tvRes = await pool.query(`
-        SELECT p.nombre, p.precio, SUM(dc.cantidad) as total_vendido
-        FROM detalle_compra dc
-        JOIN producto p ON p.id_producto = dc.id_repuesto
-        GROUP BY p.id_producto, p.nombre, p.precio
-        ORDER BY total_vendido DESC
-        LIMIT 5
-      `);
-      topVendidos = tvRes.rows;
-    } catch { /* tabla puede no existir aún */ }
-
-    // Stats generales
     const stats = await pool.query(`
       SELECT
-        COUNT(*)                                    AS total_productos,
-        SUM(stock)                                  AS total_unidades,
-        AVG(precio)::numeric(12,0)                  AS precio_promedio,
-        MAX(precio)                                 AS precio_max,
-        MIN(CASE WHEN precio > 0 THEN precio END)   AS precio_min
+        COUNT(*)                                  AS total_productos,
+        SUM(stock)                                AS total_unidades,
+        AVG(precio)::numeric(12,0)                AS precio_promedio,
+        MAX(precio)                               AS precio_max,
+        MIN(CASE WHEN precio > 0 THEN precio END) AS precio_min
       FROM producto
     `);
-
     res.json({
-      productos:    productos.rows,
-      stockBajo:    stockBajo.rows,
-      agotados:     agotados.rows,
-      topVendidos,
-      stats:        stats.rows[0],
-      timestamp:    new Date().toISOString()
+      productos:  productos.rows,
+      stockBajo:  stockBajo.rows,
+      agotados:   agotados.rows,
+      stats:      stats.rows[0],
+      timestamp:  new Date().toISOString()
     });
-
   } catch (error) {
     console.error('Error contexto asistente:', error);
     res.status(500).json({ error: 'Error obteniendo contexto del inventario' });
@@ -84,75 +48,35 @@ router.get('/contexto', async (req, res) => {
 
 // ══════════════════════════════════════════════════════════
 //  POST /api/asistente/cotizar
-//  Body: { productos: [{nombre, cantidad}] }
-//  Devuelve: cotización con subtotal, IVA y total
 // ══════════════════════════════════════════════════════════
 router.post('/cotizar', async (req, res) => {
   try {
     const { productos: solicitud } = req.body;
-
     if (!solicitud || !Array.isArray(solicitud)) {
       return res.status(400).json({ error: 'Se requiere un array de productos' });
     }
-
     const items = [];
     let subtotal = 0;
-
     for (const item of solicitud) {
       const result = await pool.query(
-        `SELECT id_producto, nombre, precio, stock
-         FROM producto
-         WHERE LOWER(nombre) ILIKE LOWER($1)
-         LIMIT 1`,
+        `SELECT id_producto, nombre, precio, stock FROM producto
+         WHERE LOWER(nombre) ILIKE LOWER($1) LIMIT 1`,
         [`%${item.nombre}%`]
       );
-
       if (result.rows.length === 0) {
-        items.push({
-          nombre:    item.nombre,
-          cantidad:  item.cantidad,
-          precio:    null,
-          subtotal:  null,
-          disponible: false,
-          mensaje:   'Producto no encontrado en inventario'
-        });
+        items.push({ nombre: item.nombre, cantidad: item.cantidad, disponible: false, mensaje: 'Producto no encontrado' });
         continue;
       }
-
-      const prod = result.rows[0];
-      const cantidad = parseInt(item.cantidad) || 1;
+      const prod       = result.rows[0];
+      const cantidad   = parseInt(item.cantidad) || 1;
       const disponible = prod.stock >= cantidad;
-      const subtotalItem = prod.precio * cantidad;
-      subtotal += subtotalItem;
-
-      items.push({
-        id_producto: prod.id_producto,
-        nombre:      prod.nombre,
-        cantidad,
-        precio_unitario: prod.precio,
-        subtotal:    subtotalItem,
-        stock_actual: prod.stock,
-        disponible,
-        mensaje: disponible
-          ? `Disponible (${prod.stock} en stock)`
-          : `Stock insuficiente (solo ${prod.stock} disponibles)`
-      });
+      const sub        = prod.precio * cantidad;
+      subtotal        += sub;
+      items.push({ id_producto: prod.id_producto, nombre: prod.nombre, cantidad, precio_unitario: prod.precio, subtotal: sub, stock_actual: prod.stock, disponible, mensaje: disponible ? `Disponible (${prod.stock} en stock)` : `Stock insuficiente (solo ${prod.stock} disponibles)` });
     }
-
-    const iva      = Math.round(subtotal * 0.19);
-    const total    = subtotal + iva;
-
-    res.json({
-      items,
-      subtotal,
-      iva,
-      total,
-      moneda:    'COP',
-      fecha:     new Date().toLocaleDateString('es-CO'),
-      validez:   '72 horas',
-      empresa:   'Frío Cars — Sistema Automotriz'
-    });
-
+    const iva   = Math.round(subtotal * 0.19);
+    const total = subtotal + iva;
+    res.json({ items, subtotal, iva, total, moneda: 'COP', fecha: new Date().toLocaleDateString('es-CO'), validez: '72 horas', empresa: 'Frío Cars — Sistema Automotriz' });
   } catch (error) {
     console.error('Error cotización asistente:', error);
     res.status(500).json({ error: 'Error generando cotización' });
@@ -161,42 +85,37 @@ router.post('/cotizar', async (req, res) => {
 
 
 // ══════════════════════════════════════════════════════════
-//  POST /api/asistente/chat — usa Gemini (GRATIS)
+//  POST /api/asistente/chat — usa Claude (Anthropic)
 // ══════════════════════════════════════════════════════════
 router.post('/chat', async (req, res) => {
   try {
     const { messages, system } = req.body;
 
-    // Convertir historial al formato de Gemini
-    const contents = messages.map(m => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }]
-    }));
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type':      'application/json',
+        'x-api-key':         process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model:      'claude-haiku-4-5-20251001',
+        max_tokens: 900,
+        system,
+        messages
+      })
+    });
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: system }] },
-          contents,
-          generationConfig: { maxOutputTokens: 900, temperature: 0.7 }
-        })
-      }
-    );
+    const data  = await response.json();
+    const texto = data.content?.[0]?.text || 'No pude procesar tu solicitud.';
 
-    const data = await response.json();
-    const texto = data.candidates?.[0]?.content?.parts?.[0]?.text
-      || 'No pude procesar tu solicitud.';
-
-    // Responde en el mismo formato que espera el frontend
     res.json({ content: [{ type: 'text', text: texto }] });
 
   } catch (error) {
-    console.error('Error Gemini:', error);
-    res.status(500).json({ error: 'Error conectando con Gemini' });
+    console.error('Error Claude:', error);
+    res.status(500).json({ error: 'Error conectando con Claude' });
   }
 });
+
 
 export default router;
