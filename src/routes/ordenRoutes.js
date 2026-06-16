@@ -140,7 +140,7 @@ router.put('/:id', async (req, res) => {
                 observaciones = $3,
                 estado        = $4,
                 id_tecnico    = $5,
-                fecha_fin     = CASE WHEN $4 = 'Finalizada' THEN NOW() ELSE NULL END
+                fecha_fin     = CASE WHEN $4::varchar = 'Finalizada' THEN NOW() ELSE NULL END
             WHERE id_orden = $6
             RETURNING *
         `, [tipo_servicio, descripcion || null, observaciones || null, estado, id_tecnico || null, id]);
