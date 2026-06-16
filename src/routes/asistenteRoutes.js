@@ -3,7 +3,7 @@
 // ══════════════════════════════════════════════════════════
 
 import express from 'express';
-import pool    from '../config/db.js';
+import pool from '../config/db.js';
 
 const router = express.Router();
 
@@ -87,16 +87,16 @@ INSTRUCCIONES:
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Content-Type':  'application/json',
+        'Content-Type': 'application/json',
         'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
       },
       body: JSON.stringify({
-        model:       'llama3-8b-8192',
-        messages:    [
+        model: 'llama-3.1-8b-instant',
+        messages: [
           { role: 'system', content: systemPrompt },
           ...messages
         ],
-        max_tokens:  600,
+        max_tokens: 600,
         temperature: 0.7
       })
     });
@@ -127,7 +127,7 @@ router.post('/cotizar', async (req, res) => {
     if (!solicitud || !Array.isArray(solicitud)) {
       return res.status(400).json({ error: 'Se requiere un array de productos' });
     }
-    const items  = [];
+    const items = [];
     let subtotal = 0;
 
     for (const item of solicitud) {
@@ -139,18 +139,18 @@ router.post('/cotizar', async (req, res) => {
         items.push({ nombre: item.nombre, disponible: false, mensaje: 'Producto no encontrado' });
         continue;
       }
-      const prod       = result.rows[0];
-      const cantidad   = parseInt(item.cantidad) || 1;
+      const prod = result.rows[0];
+      const cantidad = parseInt(item.cantidad) || 1;
       const disponible = prod.stock >= cantidad;
-      const sub        = prod.precio * cantidad;
-      subtotal        += sub;
+      const sub = prod.precio * cantidad;
+      subtotal += sub;
       items.push({
-        id_producto:     prod.id_producto,
-        nombre:          prod.nombre,
+        id_producto: prod.id_producto,
+        nombre: prod.nombre,
         cantidad,
         precio_unitario: prod.precio,
-        subtotal:        sub,
-        stock_actual:    prod.stock,
+        subtotal: sub,
+        stock_actual: prod.stock,
         disponible,
         mensaje: disponible
           ? `Disponible (${prod.stock} en stock)`
@@ -158,13 +158,13 @@ router.post('/cotizar', async (req, res) => {
       });
     }
 
-    const iva   = Math.round(subtotal * 0.19);
+    const iva = Math.round(subtotal * 0.19);
     const total = subtotal + iva;
 
     res.json({
       items, subtotal, iva, total,
-      moneda:  'COP',
-      fecha:   new Date().toLocaleDateString('es-CO'),
+      moneda: 'COP',
+      fecha: new Date().toLocaleDateString('es-CO'),
       validez: '72 horas',
       empresa: 'Frío Cars — Sistema Automotriz'
     });
