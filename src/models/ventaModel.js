@@ -1,7 +1,7 @@
 import pool from '../config/db.js';
 
 
-// ✅ REGISTRAR VENTA
+//  REGISTRAR VENTA
 
 export const registrarVenta = async (productos) => {
 
@@ -9,12 +9,12 @@ export const registrarVenta = async (productos) => {
 
     for(const producto of productos){
 
-        // 🔥 CALCULAR TOTAL
+        // CALCULAR TOTAL
 
         total += producto.precio * producto.cantidad;
 
 
-        // 🔥 DESCONTAR STOCK
+        //  DESCONTAR STOCK
 
         await pool.query(
 

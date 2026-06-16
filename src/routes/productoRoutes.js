@@ -13,7 +13,7 @@ import {
 const router = express.Router();
 
 
-// 🔥 RUTAS
+//  RUTAS
 
 router.post('/', crear);
 

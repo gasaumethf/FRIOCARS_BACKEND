@@ -1,6 +1,6 @@
 import pool from '../config/db.js';
 
-// 📦 CREAR PRODUCTO
+//  CREAR PRODUCTO
 export const crearProducto = async (producto) => {
 
     const { nombre, descripcion, precio, stock, categoria } = producto;
@@ -19,7 +19,7 @@ export const crearProducto = async (producto) => {
 };
 
 
-// 📦 OBTENER TODOS LOS PRODUCTOS
+//  OBTENER TODOS LOS PRODUCTOS
 export const obtenerProductos = async () => {
 
     const result = await pool.query('SELECT * FROM producto WHERE activo = true');
@@ -28,7 +28,7 @@ export const obtenerProductos = async () => {
 };
 
 
-// 📦 OBTENER PRODUCTO POR ID
+//  OBTENER PRODUCTO POR ID
 export const obtenerProductoPorId = async (id) => {
 
     const result = await pool.query(
@@ -40,7 +40,7 @@ export const obtenerProductoPorId = async (id) => {
 };
 
 
-// 📦 ACTUALIZAR PRODUCTO
+//  ACTUALIZAR PRODUCTO
 export const actualizarProducto = async (id, producto) => {
 
     const { nombre, descripcion, precio, stock, categoria } = producto;
@@ -64,7 +64,7 @@ export const actualizarProducto = async (id, producto) => {
 };
 
 
-// 📦 ELIMINAR (LÓGICO)
+//  ELIMINAR (LÓGICO)
 export const eliminarProducto = async (id) => {
 
     const result = await pool.query(

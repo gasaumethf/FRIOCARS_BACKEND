@@ -39,7 +39,7 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ error: "Nombre, apellido, documento y teléfono son obligatorios" });
         }
 
-        // ✅ Validar duplicado por numero_documento
+        //  Validar duplicado por numero_documento
         const existe = await pool.query(
             `SELECT id_cliente FROM cliente WHERE numero_documento = $1`,
             [numero_documento]
