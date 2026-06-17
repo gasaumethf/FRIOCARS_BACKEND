@@ -121,4 +121,149 @@ router.delete('/:id', async (req, res) => {
 });
 
 
+
+// ══════════════════════════════════════════════════════
+// POST /api/cotizaciones/diagnostico
+// ══════════════════════════════════════════════════════
+
+router.post('/diagnostico', async (req, res) => {
+    try {
+
+        const {
+            nombre,
+            telefono,
+            vehiculo,
+            descripcion,
+            imagenes = []
+        } = req.body;
+
+        const prompt = `
+Eres un técnico experto en aire acondicionado automotriz de Frío Cars.
+
+Cliente: ${nombre}
+Teléfono: ${telefono}
+Vehículo: ${vehiculo}
+
+Problema reportado:
+${descripcion}
+
+Cantidad de imágenes recibidas: ${imagenes.length}
+
+Genera:
+
+DIAGNÓSTICO
+SERVICIOS NECESARIOS
+REPUESTOS PROBABLES
+COSTO ESTIMADO EN COP
+GRAVEDAD (BAJA, MEDIA o ALTA)
+
+Responde en español.
+`;
+
+        const response = await fetch(
+            'https://api.groq.com/openai/v1/chat/completions',
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
+                },
+                body: JSON.stringify({
+                    model: 'llama-3.1-8b-instant',
+                    messages: [
+                        {
+                            role: 'system',
+                            content: 'Eres un especialista automotriz.'
+                        },
+                        {
+                            role: 'user',
+                            content: prompt
+                        }
+                    ],
+                    temperature: 0.4,
+                    max_tokens: 1000
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        if (data.error) {
+            return res.status(500).json(data);
+        }
+
+        res.json({
+            diagnostico:
+                data.choices?.[0]?.message?.content ||
+                'No se pudo generar diagnóstico'
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            error: error.message
+        });
+    }
+});
+
+
+
+
+
+router.post('/diagnostico', async (req, res) => {
+    try {
+
+        const { messages } = req.body;
+
+        const textoUsuario =
+            messages?.[0]?.content
+                ?.filter(x => x.type === 'text')
+                ?.map(x => x.text)
+                ?.join('\n') || '';
+
+        const diagnostico = `
+🔍 DIAGNÓSTICO
+
+Según la información suministrada por el cliente, se detecta una posible falla en el sistema de aire acondicionado automotriz.
+
+🔧 SERVICIOS NECESARIOS
+
+• Revisión general del sistema
+• Verificación de fugas
+• Diagnóstico electrónico
+• Comprobación de presión del gas refrigerante
+
+🧩 REPUESTOS PROBABLES
+
+• Filtro secador
+• Refrigerante
+• Mangueras del sistema
+
+💰 COSTO ESTIMADO: $350.000 - $850.000 COP
+
+🚨 URGENCIA: MEDIA
+
+Se recomienda inspección técnica para confirmar el diagnóstico.
+
+Descripción recibida:
+${textoUsuario}
+`;
+
+        res.json({
+            content: [
+                {
+                    text: diagnostico
+                }
+            ]
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            error: error.message
+        });
+    }
+});
+
+
 export default router;
