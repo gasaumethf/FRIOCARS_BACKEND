@@ -1,28 +1,26 @@
 // ══════════════════════════════════════════════════════
-//  FRÍO CARS — authRoutes.js  (v3 — con rutas admin)
+//  FRÍO CARS — authRoutes.js  (v4 — final)
 // ══════════════════════════════════════════════════════
 
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import {
     register,
     login,
     getPendientes,
-    actualizarEstado
+    actualizarEstado,
+    crearAdmin
 } from '../controllers/authController.js';
 
-// Middleware simple para verificar token y rol admin
-import jwt from 'jsonwebtoken';
-
+// Middleware solo admin
 const soloAdmin = (req, res, next) => {
     const auth = req.headers.authorization;
-    if (!auth || !auth.startsWith('Bearer ')) {
+    if (!auth?.startsWith('Bearer '))
         return res.status(401).json({ message: 'No autorizado' });
-    }
     try {
         const payload = jwt.verify(auth.split(' ')[1], process.env.JWT_SECRET);
-        if (payload.rol !== 'admin') {
+        if (payload.rol !== 'admin')
             return res.status(403).json({ message: 'Solo administradores' });
-        }
         req.usuario = payload;
         next();
     } catch {
@@ -39,5 +37,6 @@ router.post('/login', login);
 // Solo admin
 router.get('/pendientes', soloAdmin, getPendientes);
 router.patch('/usuarios/:id/estado', soloAdmin, actualizarEstado);
+router.post('/admin/crear', soloAdmin, crearAdmin);
 
 export default router;
