@@ -1,84 +1,68 @@
 // ══════════════════════════════════════════════════════
-//  FRÍO CARS — authController.js  (v2 — con rol en JWT)
+//  FRÍO CARS — authController.js  (v3 — roles + pendiente)
 // ══════════════════════════════════════════════════════
 
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { crearUsuario, buscarUsuario } from '../models/usuarioModel.js';
+import {
+    crearUsuario,
+    buscarUsuario,
+    listarPendientes,
+    actualizarEstadoUsuario
+} from '../models/usuarioModel.js';
 
 
 // ══════════════════════════════════════════════════════
-//  REGISTER
+//  REGISTER — queda PENDIENTE hasta que admin apruebe
 // ══════════════════════════════════════════════════════
 
 export const register = async (req, res) => {
 
     try {
 
-        const {
+        const { username, password, nombre, apellido, correo, rol } = req.body;
 
-            username,
-            password,
-            nombre,
-            apellido,
-            correo,
-            rol         // ← aceptar rol desde el body (opcional)
-
-        } = req.body;
-
-        // VALIDAR DUPLICADO
-        const usuarioExiste = await buscarUsuario(username);
-
-        if (usuarioExiste) {
+        // Validar duplicado
+        const existe = await buscarUsuario(username);
+        if (existe) {
             return res.status(400).json({ message: 'El usuario ya existe' });
         }
 
-        // ENCRIPTAR PASSWORD
+        // Rol válido — nunca confiar en el cliente para admin
+        const rolesPermitidos = ['trabajador', 'cliente'];
+        const rolFinal = rolesPermitidos.includes(rol) ? rol : 'cliente';
+
+        // Encriptar
         const passwordHash = await bcrypt.hash(password, 10);
 
-        // CREAR (rol default = 'cliente' si no se manda)
-        const rolFinal = ['admin', 'trabajador', 'cliente'].includes(rol) ? rol : 'cliente';
-
+        // Crear con estado PENDIENTE
         const usuario = await crearUsuario(
             username,
             passwordHash,
             nombre,
             apellido,
             correo,
-            rolFinal
+            rolFinal,
+            'PENDIENTE'     // ← estado inicial
         );
 
-        // TOKEN — incluye id Y rol
-        const token = jwt.sign(
-            {
-                id: usuario.id_usuario,
-                rol: usuario.rol
-            },
-            process.env.JWT_SECRET,
-            { expiresIn: '8h' }
-        );
-
-        // Devolver usuario sin password
         const { password: _, ...usuarioSinPassword } = usuario;
 
         res.status(201).json({
-            message: 'Usuario registrado correctamente',
-            usuario: usuarioSinPassword,
-            token
+            message: 'Registro enviado. Un administrador revisará tu solicitud pronto.',
+            usuario: usuarioSinPassword
         });
 
     } catch (error) {
-
         console.error(error);
         res.status(500).json({ message: 'Error del servidor' });
-
     }
 
 };
 
 
 // ══════════════════════════════════════════════════════
-//  LOGIN
+//  LOGIN — bloquea si estado != ACTIVO
 // ══════════════════════════════════════════════════════
 
 export const login = async (req, res) => {
@@ -93,23 +77,36 @@ export const login = async (req, res) => {
             return res.status(400).json({ message: 'Usuario no encontrado' });
         }
 
-        const passwordCorrecta = await bcrypt.compare(password, usuario.password);
+        // ── Verificar estado ANTES de la contraseña ──
+        if (usuario.estado === 'PENDIENTE') {
+            return res.status(403).json({
+                message: 'Tu cuenta está pendiente de aprobación. El administrador te notificará pronto.'
+            });
+        }
 
+        if (usuario.estado === 'RECHAZADO') {
+            return res.status(403).json({
+                message: 'Tu solicitud de registro fue rechazada. Contacta al administrador.'
+            });
+        }
+
+        if (usuario.estado !== 'ACTIVO') {
+            return res.status(403).json({ message: 'Cuenta inactiva. Contacta al administrador.' });
+        }
+
+        // Verificar contraseña
+        const passwordCorrecta = await bcrypt.compare(password, usuario.password);
         if (!passwordCorrecta) {
             return res.status(400).json({ message: 'Contraseña incorrecta' });
         }
 
-        // TOKEN — incluye id Y rol
+        // Token con id y rol
         const token = jwt.sign(
-            {
-                id: usuario.id_usuario,
-                rol: usuario.rol
-            },
+            { id: usuario.id_usuario, rol: usuario.rol },
             process.env.JWT_SECRET,
             { expiresIn: '8h' }
         );
 
-        // Devolver usuario sin password
         const { password: _, ...usuarioSinPassword } = usuario;
 
         res.json({
@@ -119,10 +116,53 @@ export const login = async (req, res) => {
         });
 
     } catch (error) {
-
         console.error(error);
         res.status(500).json({ message: 'Error del servidor' });
-
     }
 
+};
+
+
+// ══════════════════════════════════════════════════════
+//  LISTAR PENDIENTES — solo admin
+// ══════════════════════════════════════════════════════
+
+export const getPendientes = async (req, res) => {
+    try {
+        const pendientes = await listarPendientes();
+        res.json(pendientes);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error del servidor' });
+    }
+};
+
+
+// ══════════════════════════════════════════════════════
+//  APROBAR / RECHAZAR — solo admin
+// ══════════════════════════════════════════════════════
+
+export const actualizarEstado = async (req, res) => {
+    try {
+
+        const { id } = req.params;
+        const { estado } = req.body;   // 'ACTIVO' o 'RECHAZADO'
+
+        if (!['ACTIVO', 'RECHAZADO'].includes(estado)) {
+            return res.status(400).json({ message: 'Estado inválido' });
+        }
+
+        const usuario = await actualizarEstadoUsuario(id, estado);
+
+        if (!usuario) {
+            return res.status(404).json({ message: 'Usuario no encontrado' });
+        }
+
+        const accion = estado === 'ACTIVO' ? 'aprobado' : 'rechazado';
+        res.json({ message: `Usuario ${accion} correctamente`, usuario });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error del servidor' });
+    }
 };

@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════
-//  FRÍO CARS — usuarioModel.js  (v2 — con rol)
+//  FRÍO CARS — usuarioModel.js  (v3 — con estado)
 // ══════════════════════════════════════════════════════
 
 import pool from '../config/db.js';
@@ -8,64 +8,68 @@ import pool from '../config/db.js';
 // CREAR USUARIO
 
 export const crearUsuario = async (
-
     username,
     password,
     nombre,
     apellido,
     correo,
-    rol = 'cliente'         // ← nuevo parámetro, default cliente
-
+    rol = 'cliente',
+    estado = 'PENDIENTE'
 ) => {
 
-    const query = `
-
+    const result = await pool.query(`
         INSERT INTO usuario
-        (
-            username,
-            password,
-            nombre,
-            apellido,
-            correo,
-            rol,
-            estado
-        )
-
-        VALUES ($1,$2,$3,$4,$5,$6,'ACTIVO')
-
+            (username, password, nombre, apellido, correo, rol, estado)
+        VALUES
+            ($1, $2, $3, $4, $5, $6, $7)
         RETURNING id_usuario, username, nombre, apellido, correo, rol, estado
-
-    `;
-
-    const values = [
-
-        username,
-        password,
-        nombre,
-        apellido,
-        correo,
-        rol
-
-    ];
-
-    const result = await pool.query(query, values);
+    `, [username, password, nombre, apellido, correo, rol, estado]);
 
     return result.rows[0];
 
 };
 
 
-// BUSCAR USUARIO (devuelve todos los campos incluido rol y password para comparar)
+// BUSCAR USUARIO POR USERNAME
 
 export const buscarUsuario = async (username) => {
 
     const result = await pool.query(
-
         'SELECT * FROM usuario WHERE username = $1',
-
         [username]
-
     );
+
+    return result.rows[0];
+
+};
+
+
+// LISTAR USUARIOS PENDIENTES (para el panel admin)
+
+export const listarPendientes = async () => {
+
+    const result = await pool.query(`
+        SELECT id_usuario, username, nombre, apellido, correo, rol, estado, created_at
+        FROM usuario
+        WHERE estado = 'PENDIENTE'
+        ORDER BY created_at ASC
+    `);
+
+    return result.rows;
+
+};
+
+
+// APROBAR O RECHAZAR USUARIO
+
+export const actualizarEstadoUsuario = async (id, estado) => {
+
+    const result = await pool.query(`
+        UPDATE usuario
+        SET estado = $1
+        WHERE id_usuario = $2
+        RETURNING id_usuario, username, nombre, apellido, correo, rol, estado
+    `, [estado, id]);
 
     return result.rows[0];
 
