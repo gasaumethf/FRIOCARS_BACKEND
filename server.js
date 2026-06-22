@@ -2,21 +2,21 @@
 //  FRÍO CARS — server.js
 // ══════════════════════════════════════════════════════
 
-import express        from 'express';
-import cors           from 'cors';
-import dotenv         from 'dotenv';
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
 
 // ── RUTAS ─────────────────────────────────────────────
-import authRoutes     from './src/routes/authRoutes.js';
+import authRoutes from './src/routes/authRoutes.js';
 import productoRoutes from './src/routes/productoRoutes.js';
-import ventaRoutes    from './src/routes/ventaRoutes.js';
-import clienteRoutes  from './src/routes/clienteRoutes.js';
+import ventaRoutes from './src/routes/ventaRoutes.js';
+import clienteRoutes from './src/routes/clienteRoutes.js';
 import vehiculoRoutes from './src/routes/vehiculoRoutes.js';
 import asistenteRoutes from './src/routes/asistenteRoutes.js';
-import tecnicoRoutes  from './src/routes/tecnicoRoutes.js';   // ← NUEVO
-import ordenRoutes    from './src/routes/ordenRoutes.js';     // ← NUEVO
+import tecnicoRoutes from './src/routes/tecnicoRoutes.js';   // ← NUEVO
+import ordenRoutes from './src/routes/ordenRoutes.js';     // ← NUEVO
 import cotizacionRoutes from './src/routes/cotizacionRoutes.js'; //COTIZACIONES 
-
+import catalogoRoutes from './routes/catalogoRoutes.js';
 
 // ── CONFIG ────────────────────────────────────────────
 dotenv.config();
@@ -35,15 +35,17 @@ app.use(cors());
 app.use(express.json());
 
 // ── RUTAS API ─────────────────────────────────────────
-app.use('/api/auth',       authRoutes);
-app.use('/api/clientes',   clienteRoutes);    // GET POST PUT DELETE /api/clientes
-app.use('/api/vehiculos',  vehiculoRoutes);   // GET POST PUT DELETE /api/vehiculos
-app.use('/api/ventas',     ventaRoutes);      // GET POST /api/ventas
-app.use('/api/productos',  productoRoutes);   // GET POST PUT DELETE /api/productos
-app.use('/api/asistente',  asistenteRoutes);
-app.use('/api/tecnicos',   tecnicoRoutes);    // GET POST PUT DELETE /api/tecnicos  ← NUEVO
-app.use('/api/ordenes',    ordenRoutes);      // GET POST PUT PATCH DELETE /api/ordenes ← NUEVO
+app.use('/api/auth', authRoutes);
+app.use('/api/clientes', clienteRoutes);    // GET POST PUT DELETE /api/clientes
+app.use('/api/vehiculos', vehiculoRoutes);   // GET POST PUT DELETE /api/vehiculos
+app.use('/api/ventas', ventaRoutes);      // GET POST /api/ventas
+app.use('/api/productos', productoRoutes);   // GET POST PUT DELETE /api/productos
+app.use('/api/asistente', asistenteRoutes);
+app.use('/api/tecnicos', tecnicoRoutes);    // GET POST PUT DELETE /api/tecnicos  ← NUEVO
+app.use('/api/ordenes', ordenRoutes);      // GET POST PUT PATCH DELETE /api/ordenes ← NUEVO
 app.use('/api/cotizaciones', cotizacionRoutes) //COTIZACIONES 
+app.use('/api/catalogo', catalogoRoutes);
+
 
 // ── RUTA PRINCIPAL ────────────────────────────────────
 app.get('/', (req, res) => {

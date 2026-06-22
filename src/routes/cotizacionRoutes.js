@@ -222,26 +222,26 @@ router.post('/diagnostico', async (req, res) => {
                 ?.join('\n') || '';
 
         const diagnostico = `
-🔍 DIAGNÓSTICO
+ DIAGNÓSTICO
 
 Según la información suministrada por el cliente, se detecta una posible falla en el sistema de aire acondicionado automotriz.
 
-🔧 SERVICIOS NECESARIOS
+ SERVICIOS NECESARIOS
 
 • Revisión general del sistema
 • Verificación de fugas
 • Diagnóstico electrónico
 • Comprobación de presión del gas refrigerante
 
-🧩 REPUESTOS PROBABLES
+ REPUESTOS PROBABLES
 
 • Filtro secador
 • Refrigerante
 • Mangueras del sistema
 
-💰 COSTO ESTIMADO: $350.000 - $850.000 COP
+ COSTO ESTIMADO: $350.000 - $850.000 COP
 
-🚨 URGENCIA: MEDIA
+ URGENCIA: MEDIA
 
 Se recomienda inspección técnica para confirmar el diagnóstico.
 
