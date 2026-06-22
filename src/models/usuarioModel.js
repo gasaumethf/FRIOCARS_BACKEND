@@ -1,3 +1,7 @@
+// ══════════════════════════════════════════════════════
+//  FRÍO CARS — usuarioModel.js  (v2 — con rol)
+// ══════════════════════════════════════════════════════
+
 import pool from '../config/db.js';
 
 
@@ -9,7 +13,8 @@ export const crearUsuario = async (
     password,
     nombre,
     apellido,
-    correo
+    correo,
+    rol = 'cliente'         // ← nuevo parámetro, default cliente
 
 ) => {
 
@@ -22,12 +27,13 @@ export const crearUsuario = async (
             nombre,
             apellido,
             correo,
+            rol,
             estado
         )
 
-        VALUES ($1,$2,$3,$4,$5,'ACTIVO')
+        VALUES ($1,$2,$3,$4,$5,$6,'ACTIVO')
 
-        RETURNING *
+        RETURNING id_usuario, username, nombre, apellido, correo, rol, estado
 
     `;
 
@@ -37,7 +43,8 @@ export const crearUsuario = async (
         password,
         nombre,
         apellido,
-        correo
+        correo,
+        rol
 
     ];
 
@@ -48,7 +55,7 @@ export const crearUsuario = async (
 };
 
 
-// BUSCAR USUARIO
+// BUSCAR USUARIO (devuelve todos los campos incluido rol y password para comparar)
 
 export const buscarUsuario = async (username) => {
 

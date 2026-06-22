@@ -1,20 +1,19 @@
+// ══════════════════════════════════════════════════════
+//  FRÍO CARS — authController.js  (v2 — con rol en JWT)
+// ══════════════════════════════════════════════════════
+
 import bcrypt from 'bcrypt';
-
 import jwt from 'jsonwebtoken';
-
-import {
-
-    crearUsuario,
-    buscarUsuario
-
-} from '../models/usuarioModel.js';
+import { crearUsuario, buscarUsuario } from '../models/usuarioModel.js';
 
 
-// REGISTER
+// ══════════════════════════════════════════════════════
+//  REGISTER
+// ══════════════════════════════════════════════════════
 
 export const register = async (req, res) => {
 
-    try{
+    try {
 
         const {
 
@@ -22,164 +21,107 @@ export const register = async (req, res) => {
             password,
             nombre,
             apellido,
-            correo
+            correo,
+            rol         // ← aceptar rol desde el body (opcional)
 
         } = req.body;
 
-        // VALIDAR
-
+        // VALIDAR DUPLICADO
         const usuarioExiste = await buscarUsuario(username);
 
-        if(usuarioExiste){
-
-            return res.status(400).json({
-
-                message: 'El usuario ya existe'
-
-            });
-
+        if (usuarioExiste) {
+            return res.status(400).json({ message: 'El usuario ya existe' });
         }
 
         // ENCRIPTAR PASSWORD
-
         const passwordHash = await bcrypt.hash(password, 10);
 
-        // CREAR
+        // CREAR (rol default = 'cliente' si no se manda)
+        const rolFinal = ['admin', 'trabajador', 'cliente'].includes(rol) ? rol : 'cliente';
 
         const usuario = await crearUsuario(
-
             username,
             passwordHash,
             nombre,
             apellido,
-            correo
-
+            correo,
+            rolFinal
         );
 
-        // TOKEN
-
+        // TOKEN — incluye id Y rol
         const token = jwt.sign(
-
             {
-
-                id: usuario.id_usuario
-
+                id: usuario.id_usuario,
+                rol: usuario.rol
             },
-
             process.env.JWT_SECRET,
-
-            {
-
-                expiresIn: '8h'
-
-            }
-
+            { expiresIn: '8h' }
         );
+
+        // Devolver usuario sin password
+        const { password: _, ...usuarioSinPassword } = usuario;
 
         res.status(201).json({
-
             message: 'Usuario registrado correctamente',
-
-            usuario,
+            usuario: usuarioSinPassword,
             token
-
         });
 
-    }catch(error){
+    } catch (error) {
 
         console.error(error);
-
-        res.status(500).json({
-
-            message: 'Error del servidor'
-
-        });
+        res.status(500).json({ message: 'Error del servidor' });
 
     }
 
 };
 
 
-// LOGIN
+// ══════════════════════════════════════════════════════
+//  LOGIN
+// ══════════════════════════════════════════════════════
 
 export const login = async (req, res) => {
 
-    try{
+    try {
 
-        const {
-
-            username,
-            password
-
-        } = req.body;
+        const { username, password } = req.body;
 
         const usuario = await buscarUsuario(username);
 
-        if(!usuario){
-
-            return res.status(400).json({
-
-                message: 'Usuario no encontrado'
-
-            });
-
+        if (!usuario) {
+            return res.status(400).json({ message: 'Usuario no encontrado' });
         }
 
-        const passwordCorrecta = await bcrypt.compare(
+        const passwordCorrecta = await bcrypt.compare(password, usuario.password);
 
-            password,
-            usuario.password
-
-        );
-
-        if(!passwordCorrecta){
-
-            return res.status(400).json({
-
-                message: 'Contraseña incorrecta'
-
-            });
-
+        if (!passwordCorrecta) {
+            return res.status(400).json({ message: 'Contraseña incorrecta' });
         }
 
-        // TOKEN
-
+        // TOKEN — incluye id Y rol
         const token = jwt.sign(
-
             {
-
-                id: usuario.id_usuario
-
+                id: usuario.id_usuario,
+                rol: usuario.rol
             },
-
             process.env.JWT_SECRET,
-
-            {
-
-                expiresIn: '8h'
-
-            }
-
+            { expiresIn: '8h' }
         );
+
+        // Devolver usuario sin password
+        const { password: _, ...usuarioSinPassword } = usuario;
 
         res.json({
-
             message: 'Login exitoso',
-
-            usuario,
+            usuario: usuarioSinPassword,
             token
-
         });
 
-    }catch(error){
+    } catch (error) {
 
         console.error(error);
-
-        res.status(500).json({
-
-            message: 'Error del servidor'
-
-        });
+        res.status(500).json({ message: 'Error del servidor' });
 
     }
 
