@@ -16,7 +16,7 @@ import asistenteRoutes from './src/routes/asistenteRoutes.js';
 import tecnicoRoutes from './src/routes/tecnicoRoutes.js';   // ← NUEVO
 import ordenRoutes from './src/routes/ordenRoutes.js';     // ← NUEVO
 import cotizacionRoutes from './src/routes/cotizacionRoutes.js'; //COTIZACIONES 
-import catalogoRoutes from './routes/catalogoRoutes.js';
+import catalogoRoutes from './src/routes/catalogoRoutes.js';
 
 // ── CONFIG ────────────────────────────────────────────
 dotenv.config();
