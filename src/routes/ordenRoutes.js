@@ -179,7 +179,7 @@ router.post('/:id/repuestos', async (req, res) => {
         if (existe.rows.length > 0) {
             const nuevaCantidad = existe.rows[0].cantidad + cantidad;
             result = await client.query(
-                `UPDATE orden_repuesto SET cantidad = $1, subtotal = precio_aplicado * $1
+                `UPDATE orden_repuesto SET cantidad = $1
                  WHERE id_orden_repuesto = $2 RETURNING *`,
                 [nuevaCantidad, existe.rows[0].id_orden_repuesto]);
         } else {
