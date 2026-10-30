@@ -17,7 +17,18 @@ import {
 // ── REGISTER (público) ────────────────────────────────
 export const register = async (req, res) => {
     try {
-        const { username, password, nombre, apellido, correo, rol } = req.body;
+        const { username, password, rol } = req.body;
+        const nombre = String(req.body.nombre || '').trim();
+        const apellido = String(req.body.apellido || '').trim();
+        const correo = String(req.body.correo || '').trim();
+
+        // Mismas reglas que el formulario de registro
+        const RE_TEXTO = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+( [A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*$/;
+        const RE_CORREO = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
+        if (!RE_TEXTO.test(nombre) || !RE_TEXTO.test(apellido))
+            return res.status(400).json({ message: 'Nombre y apellido solo pueden contener letras.' });
+        if (!RE_CORREO.test(correo))
+            return res.status(400).json({ message: 'Ingresa un correo electrónico válido (ej: nombre@gmail.com).' });
 
         const existe = await buscarUsuario(username);
         if (existe) return res.status(400).json({ message: 'El usuario ya existe' });
