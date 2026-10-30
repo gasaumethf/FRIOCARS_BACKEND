@@ -5,6 +5,7 @@
 
 import express from 'express';
 import pool    from '../config/db.js';
+import { chatGroq } from '../services/groq.js';
 
 const router = express.Router();
 
@@ -137,11 +138,21 @@ router.post('/diagnostico', async (req, res) => {
             imagenes = []
         } = req.body;
 
-        const prompt = `
-Eres un técnico experto en aire acondicionado automotriz de Frío Cars.
+        // Precios reales de repuestos por categoría, para que el costo sea coherente con el inventario
+        const { rows: categorias } = await pool.query(`
+            SELECT COALESCE(categoria, 'OTROS') AS categoria,
+                   MIN(precio) FILTER (WHERE precio > 0)::numeric(12,0) AS minimo,
+                   MAX(precio)::numeric(12,0) AS maximo,
+                   COUNT(*) FILTER (WHERE stock > 0) AS con_stock
+            FROM producto GROUP BY 1 ORDER BY 1
+        `);
+        const preciosTexto = categorias
+            .map(c => `• ${c.categoria}: $${Number(c.minimo || 0).toLocaleString('es-CO')} - $${Number(c.maximo || 0).toLocaleString('es-CO')} (${c.con_stock} con stock)`)
+            .join('\n');
 
+        const prompt = `
 Cliente: ${nombre}
-Teléfono: ${telefono}
+Teléfono: ${telefono || 'N/A'}
 Vehículo: ${vehiculo}
 
 Problema reportado:
@@ -149,113 +160,39 @@ ${descripcion}
 
 Cantidad de imágenes recibidas: ${imagenes.length}
 
-Genera:
+PRECIOS DE REPUESTOS EN NUESTRO INVENTARIO (rango por categoría, COP):
+${preciosTexto}
+
+Genera estas secciones:
 
 DIAGNÓSTICO
 SERVICIOS NECESARIOS
 REPUESTOS PROBABLES
-COSTO ESTIMADO EN COP
-GRAVEDAD (BAJA, MEDIA o ALTA)
+COSTO ESTIMADO: escríbelo exactamente con el formato "$350.000 - $850.000 COP" (repuestos + mano de obra)
+URGENCIA: BAJA, MEDIA o ALTA
 
-Responde en español.
+Responde en español colombiano.
 `;
 
-        const response = await fetch(
-            'https://api.groq.com/openai/v1/chat/completions',
+        const data = await chatGroq([
             {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
-                },
-                body: JSON.stringify({
-                    model: 'llama-3.1-8b-instant',
-                    messages: [
-                        {
-                            role: 'system',
-                            content: 'Eres un especialista automotriz.'
-                        },
-                        {
-                            role: 'user',
-                            content: prompt
-                        }
-                    ],
-                    temperature: 0.4,
-                    max_tokens: 1000
-                })
-            }
-        );
-
-        const data = await response.json();
+                role: 'system',
+                content: 'Eres un técnico experto en aire acondicionado y refrigeración automotriz de Frío Cars (Colombia).'
+            },
+            { role: 'user', content: prompt }
+        ], { temperature: 0.4, max_tokens: 1000 });
 
         if (data.error) {
-            return res.status(500).json(data);
+            console.error('Error Groq:', data.error);
+            return res.status(502).json({ error: data.error.message });
         }
 
-        res.json({
-            diagnostico:
-                data.choices?.[0]?.message?.content ||
-                'No se pudo generar diagnóstico'
-        });
+        const diagnostico = data.choices?.[0]?.message?.content;
+        if (!diagnostico) {
+            return res.status(502).json({ error: 'La IA no devolvió un diagnóstico' });
+        }
 
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({
-            error: error.message
-        });
-    }
-});
-
-
-
-
-
-router.post('/diagnostico', async (req, res) => {
-    try {
-
-        const { messages } = req.body;
-
-        const textoUsuario =
-            messages?.[0]?.content
-                ?.filter(x => x.type === 'text')
-                ?.map(x => x.text)
-                ?.join('\n') || '';
-
-        const diagnostico = `
- DIAGNÓSTICO
-
-Según la información suministrada por el cliente, se detecta una posible falla en el sistema de aire acondicionado automotriz.
-
- SERVICIOS NECESARIOS
-
-• Revisión general del sistema
-• Verificación de fugas
-• Diagnóstico electrónico
-• Comprobación de presión del gas refrigerante
-
- REPUESTOS PROBABLES
-
-• Filtro secador
-• Refrigerante
-• Mangueras del sistema
-
- COSTO ESTIMADO: $350.000 - $850.000 COP
-
- URGENCIA: MEDIA
-
-Se recomienda inspección técnica para confirmar el diagnóstico.
-
-Descripción recibida:
-${textoUsuario}
-`;
-
-        res.json({
-            content: [
-                {
-                    text: diagnostico
-                }
-            ]
-        });
+        res.json({ diagnostico });
 
     } catch (error) {
         console.error(error);
