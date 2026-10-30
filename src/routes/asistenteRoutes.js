@@ -32,80 +32,209 @@ router.get('/contexto', async (req, res) => {
 
 
 // ══════════════════════════════════════════════════════════
-//  POST /api/asistente/chat — Groq (llama3-8b-8192)
+//  Groq — selección de modelo
+//  Groq retira modelos con frecuencia; si el configurado ya no
+//  existe, se pide la lista de modelos disponibles y se usa otro.
+// ══════════════════════════════════════════════════════════
+const GROQ_URL = 'https://api.groq.com/openai/v1';
+const MODELOS_PREFERIDOS = [
+  process.env.GROQ_MODEL,
+  'llama-3.3-70b-versatile',
+  'openai/gpt-oss-120b',
+  'openai/gpt-oss-20b',
+  'llama-3.1-8b-instant',
+].filter(Boolean);
+
+let modeloActivo = MODELOS_PREFERIDOS[0];
+
+async function modelosDisponibles() {
+  const r = await fetch(`${GROQ_URL}/models`, {
+    headers: { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` }
+  });
+  const data = await r.json();
+  return (data.data || [])
+    .filter(m => m.active !== false)
+    .map(m => m.id)
+    // Solo modelos de chat (descarta whisper, tts, guard, etc.)
+    .filter(id => !/whisper|tts|guard|prompt|orpheus|playai|compound/i.test(id));
+}
+
+async function llamarGroq(mensajes, modelo) {
+  const r = await fetch(`${GROQ_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: modelo,
+      messages: mensajes,
+      max_tokens: 800,
+      temperature: 0.4
+    })
+  });
+  return r.json();
+}
+
+async function chatGroq(mensajes) {
+  let data = await llamarGroq(mensajes, modeloActivo);
+  const errorModelo = data.error && /model|decommission|does not exist|access/i.test(data.error.message || '');
+  if (!errorModelo) return data;
+
+  console.warn(`Modelo Groq "${modeloActivo}" no disponible: ${data.error.message}`);
+  const disponibles = await modelosDisponibles();
+  const candidatos = [
+    ...MODELOS_PREFERIDOS.filter(m => disponibles.includes(m)),
+    ...disponibles,
+  ].filter(m => m !== modeloActivo);
+
+  for (const modelo of candidatos) {
+    data = await llamarGroq(mensajes, modelo);
+    if (!data.error) {
+      console.log(`Usando modelo Groq: ${modelo}`);
+      modeloActivo = modelo;
+      return data;
+    }
+  }
+  return data;
+}
+
+
+// ══════════════════════════════════════════════════════════
+//  Consultas a la BD según la pregunta
+// ══════════════════════════════════════════════════════════
+const PALABRAS_VACIAS = new Set([
+  'cual', 'cuales', 'cuanto', 'cuantos', 'cuantas', 'tienen', 'tiene', 'tengo', 'hay', 'para',
+  'productos', 'producto', 'precio', 'precios', 'stock', 'dame', 'quiero', 'necesito', 'sobre',
+  'como', 'donde', 'esta', 'estan', 'disponible', 'disponibles', 'inventario', 'unidades',
+  'cotiza', 'cotizar', 'cotizacion', 'carro', 'tienda', 'tiendas', 'favor', 'todos', 'todas',
+  'mas', 'menos', 'caros', 'baratos', 'bajo', 'agotados', 'resumen', 'con', 'los', 'las', 'del',
+]);
+
+function normalizar(txt) {
+  return txt.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+const fila = p =>
+  `• ${p.nombre} | $${Number(p.precio).toLocaleString('es-CO')} | Stock: ${p.stock} | Cat: ${p.categoria || 'N/A'}`;
+
+async function contextoBD(pregunta) {
+  const q = normalizar(pregunta);
+  const secciones = [];
+
+  // Resumen general (siempre, es barato)
+  const { rows: [stats] } = await pool.query(`
+    SELECT COUNT(*) AS total_productos,
+           COUNT(*) FILTER (WHERE stock > 0) AS con_stock,
+           COUNT(*) FILTER (WHERE stock = 0) AS agotados,
+           COUNT(*) FILTER (WHERE stock > 0 AND stock < 5) AS stock_bajo,
+           COALESCE(SUM(stock), 0) AS total_unidades,
+           COALESCE(SUM(stock * precio), 0)::numeric(14,0) AS valor_inventario
+    FROM producto
+  `);
+  secciones.push(`RESUMEN DEL INVENTARIO:
+Productos: ${stats.total_productos} | Con stock: ${stats.con_stock} | Agotados: ${stats.agotados} | Stock bajo (<5): ${stats.stock_bajo}
+Unidades totales: ${stats.total_unidades} | Valor del inventario: $${Number(stats.valor_inventario).toLocaleString('es-CO')}`);
+
+  const { rows: categorias } = await pool.query(`
+    SELECT COALESCE(categoria, 'SIN CATEGORIA') AS categoria, COUNT(*) AS productos, COALESCE(SUM(stock), 0) AS unidades
+    FROM producto GROUP BY 1 ORDER BY 1
+  `);
+  secciones.push('CATEGORÍAS:\n' + categorias.map(c => `• ${c.categoria}: ${c.productos} productos, ${c.unidades} uds`).join('\n'));
+
+  if (/bajo|poco|agotad|reponer|pedir|falta|sin stock/.test(q)) {
+    const { rows } = await pool.query(
+      `SELECT nombre, categoria, precio, stock FROM producto WHERE stock < 5 ORDER BY stock ASC, nombre LIMIT 40`
+    );
+    secciones.push('PRODUCTOS CON STOCK BAJO O AGOTADOS (stock < 5):\n' + (rows.map(fila).join('\n') || 'Ninguno'));
+  }
+
+  if (/caro|costoso|mayor precio|mas alto/.test(q)) {
+    const { rows } = await pool.query(
+      `SELECT nombre, categoria, precio, stock FROM producto ORDER BY precio DESC LIMIT 15`
+    );
+    secciones.push('PRODUCTOS MÁS CAROS:\n' + rows.map(fila).join('\n'));
+  }
+
+  if (/barato|economico|menor precio|mas bajo/.test(q)) {
+    const { rows } = await pool.query(
+      `SELECT nombre, categoria, precio, stock FROM producto WHERE precio > 0 ORDER BY precio ASC LIMIT 15`
+    );
+    secciones.push('PRODUCTOS MÁS BARATOS:\n' + rows.map(fila).join('\n'));
+  }
+
+  if (/mas stock|mayor stock|mas unidades/.test(q)) {
+    const { rows } = await pool.query(
+      `SELECT nombre, categoria, precio, stock FROM producto ORDER BY stock DESC LIMIT 15`
+    );
+    secciones.push('PRODUCTOS CON MÁS STOCK:\n' + rows.map(fila).join('\n'));
+  }
+
+  // Búsqueda por palabras clave en nombre y categoría (sin tildes)
+  const palabras = [...new Set(
+    q.replace(/[^a-z0-9ñ\s-]/g, ' ').split(/\s+/)
+      .filter(p => p.length > 2 && !PALABRAS_VACIAS.has(p))
+  )].slice(0, 6);
+
+  if (palabras.length > 0) {
+    const condiciones = palabras
+      .map((_, i) => `(TRANSLATE(LOWER(nombre), 'áéíóúü', 'aeiouu') LIKE $${i + 1}
+                    OR TRANSLATE(LOWER(COALESCE(categoria, '')), 'áéíóúü', 'aeiouu') LIKE $${i + 1})`)
+      .join(' OR ');
+    const { rows } = await pool.query(
+      `SELECT nombre, categoria, precio, stock FROM producto WHERE ${condiciones} ORDER BY stock DESC, nombre LIMIT 40`,
+      palabras.map(p => `%${p}%`)
+    );
+    if (rows.length > 0) {
+      secciones.push(`PRODUCTOS QUE COINCIDEN CON "${palabras.join(', ')}":\n` + rows.map(fila).join('\n'));
+    } else {
+      secciones.push(`No se encontraron productos que coincidan con "${palabras.join(', ')}".`);
+    }
+  }
+
+  return secciones.join('\n\n');
+}
+
+
+// ══════════════════════════════════════════════════════════
+//  POST /api/asistente/chat — Groq
 // ══════════════════════════════════════════════════════════
 router.post('/chat', async (req, res) => {
   try {
-    const { messages } = req.body;
+    if (!process.env.GROQ_API_KEY) {
+      return res.status(500).json({ error: 'Falta configurar GROQ_API_KEY en el servidor.' });
+    }
+
+    const messages = (Array.isArray(req.body?.messages) ? req.body.messages : [])
+      .filter(m => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+      .slice(-12);
+
+    if (messages.length === 0) {
+      return res.status(400).json({ error: 'Se requiere al menos un mensaje.' });
+    }
 
     // Última pregunta del usuario
-    const ultimaPregunta = messages[messages.length - 1]?.content || '';
+    const ultimaPregunta = [...messages].reverse().find(m => m.role === 'user')?.content || '';
+    const datos = await contextoBD(ultimaPregunta);
 
-    // Buscar productos relevantes en BD
-    const palabras = ultimaPregunta
-      .toLowerCase()
-      .split(/\s+/)
-      .filter(p => p.length > 3)
-      .slice(0, 5);
+    const systemPrompt = `Eres el asistente de Frío Cars, empresa colombiana de refrigeración y aire acondicionado automotriz.
 
-    let productosRelevantes = [];
-
-    if (palabras.length > 0) {
-      const condiciones = palabras.map((_, i) => `LOWER(nombre) ILIKE $${i + 1}`).join(' OR ');
-      const valores = palabras.map(p => `%${p}%`);
-      const resultado = await pool.query(
-        `SELECT nombre, categoria, precio, stock FROM producto WHERE ${condiciones} ORDER BY nombre LIMIT 15`,
-        valores
-      );
-      productosRelevantes = resultado.rows;
-    }
-
-    if (productosRelevantes.length === 0) {
-      const fallback = await pool.query(
-        `SELECT nombre, categoria, precio, stock FROM producto WHERE stock > 0 ORDER BY nombre LIMIT 20`
-      );
-      productosRelevantes = fallback.rows;
-    }
-
-    const inventarioTexto = productosRelevantes
-      .map(p => `• ${p.nombre} | $${Number(p.precio).toLocaleString('es-CO')} | Stock: ${p.stock} | Cat: ${p.categoria || 'N/A'}`)
-      .join('\n');
-
-    const systemPrompt = `Eres el asistente de Frío Cars, empresa colombiana de refrigeración automotriz.
-
-PRODUCTOS RELEVANTES DEL INVENTARIO:
-${inventarioTexto}
+DATOS REALES DE LA BASE DE DATOS (consultados ahora mismo):
+${datos}
 
 INSTRUCCIONES:
 - Responde en español colombiano, claro y útil
-- Cuando den precios incluye IVA 19% si te lo piden
-- Si el producto exacto no está, sugiere el más parecido
+- Usa SOLO los datos de arriba para stock, precios y cantidades; no inventes productos
+- Si el producto exacto no está, dilo y sugiere el más parecido de la lista
+- Para cotizaciones da desglose: subtotal, IVA 19% y total
 - Indica el stock disponible
 - Sé breve y directo`;
 
-    // Llamar a Groq
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...messages
-        ],
-        max_tokens: 600,
-        temperature: 0.7
-      })
-    });
-
-    const data = await response.json();
+    const data = await chatGroq([{ role: 'system', content: systemPrompt }, ...messages]);
 
     if (data.error) {
       console.error('Error Groq:', data.error);
-      return res.status(500).json({ error: data.error.message });
+      return res.status(502).json({ error: data.error.message });
     }
 
     const texto = data.choices?.[0]?.message?.content || 'No pude procesar tu solicitud.';
